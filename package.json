@@ -1,0 +1,13 @@
+{
+  "name": "randm",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Rick & Morty fair-number Monty Hall model",
+  "main": "src/main.mjs",
+  "scripts": {
+    "start": "node src/main.mjs"
+  },
+  "dependencies": {
+    "cli-table3": "^0.6.3"
+  }
+}
