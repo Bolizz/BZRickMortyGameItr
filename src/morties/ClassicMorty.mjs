@@ -17,7 +17,6 @@ export class ClassicMorty extends Morty {
       return other;
     }
   }
-  //idk
 
   exactProbabilities(N) {
     return { stay: 1 / N, switch: (N - 1) / N };

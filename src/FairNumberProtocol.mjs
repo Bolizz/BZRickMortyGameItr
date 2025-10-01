@@ -1,49 +1,56 @@
 import crypto from "node:crypto";
 import { KeyManager } from "./KeyManager.mjs";
-import { UniformCSPRNG } from "./UniformCSPRNG.mjs";
 
 export class FairNumberProtocol {
   constructor(io) {
     this.io = io;
     this.sessions = [];
   }
+
   async get(range, label = "") {
-    const key = KeyManager.newKey();
-    const m = UniformCSPRNG.int(range);
+    if (!Number.isInteger(range) || range < 2) {
+      throw new Error(`Range must be an integer >= 2 (got ${range})`);
+    }
 
-    const hmac = crypto
-      .createHmac("sha3-256", key)
-      .update(Buffer.from([m]))
-      .digest("hex")
-      .toUpperCase();
+    const secretKey = KeyManager.newKey();
+    const mortyNumber = await crypto.randomInt(0, range);
 
-    if (label) console.log(`Morty: HMAC${label}=${hmac}`);
-    else console.log(`Morty: HMAC=${hmac}`);
+    const commitment = this.#hmacSha3(secretKey, mortyNumber).toUpperCase();
+    const tag = label ? `HMAC${label}` : "HMAC";
+    console.log(`Morty: ${tag}=${commitment}`);
 
-    const r = await this.io.askIntInRange(
+    const rickNumber = await this.io.askIntInRange(
       "Morty: Rick, enter your number",
       0,
       range
     );
 
-    const fair = (m + r) % range;
-    const idx = this.sessions.push({ key, m, r, range, label, fair }) - 1;
-    return { value: fair, index: idx };
+    const fairNumber = (mortyNumber + rickNumber) % range;
+
+    const sessionIndex =
+      this.sessions.push({
+        key: secretKey,
+        m: mortyNumber,
+        r: rickNumber,
+        range,
+        label,
+        fair: fairNumber,
+      }) - 1;
+
+    return { value: fairNumber, index: sessionIndex };
   }
 
   reveal(index) {
     const s = this.sessions[index];
     if (!s) return;
-    const { m, r, range, key, label, fair } = s;
-    const tag = label ? ` ${label}` : "";
-    console.log(`Morty: Aww man, my${tag} random value is ${m}.`);
+
+    const labelNote = s.label ? ` ${s.label}` : "";
+    console.log(`Morty: Aww man, my${labelNote} random value is ${s.m}.`);
     console.log(
-      `Morty: KEY${label || ""}=${key.toString("hex").toUpperCase()}`
+      `Morty: KEY${s.label || ""}=${s.key.toString("hex").toUpperCase()}`
     );
     console.log(
-      `Morty: So the${
-        tag || ""
-      } fair number is (${m} + ${r}) % ${range} = ${fair}.`
+      `Morty: So the${labelNote} fair number is (${s.m} + ${s.r}) % ${s.range} = ${s.fair}.`
     );
   }
 
@@ -53,5 +60,10 @@ export class FairNumberProtocol {
 
   reset() {
     this.sessions = [];
+  }
+
+  #hmacSha3(key, mortyNumber) {
+    const msg = Buffer.from([mortyNumber]);
+    return crypto.createHmac("sha3-256", key).update(msg).digest("hex");
   }
 }
